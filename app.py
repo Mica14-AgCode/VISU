@@ -572,6 +572,10 @@ def main():
     if "df_cultivos_cuit" not in st.session_state:
         st.session_state.df_cultivos_cuit = None
     if "df_cultivos_kmz" not in st.session_state:
+    if "area_total_cuit" not in st.session_state:
+        st.session_state.area_total_cuit = None
+    if "area_total_kmz" not in st.session_state:
+        st.session_state.area_total_kmz = None
         st.session_state.df_cultivos_kmz = None
         st.session_state.analisis_completado = False
     
@@ -691,6 +695,9 @@ def mostrar_analisis_cuit():
                                     else:
                                         st.error("❌ No se pudieron analizar los cultivos")
 
+                            # Guardar campos en session state para persistencia
+                            st.session_state.campos_cuit = poligonos_data
+
                             # Guardar resultados
                             st.session_state.resultados_analisis = {
                                 'tipo': 'cuit',
@@ -709,6 +716,88 @@ def mostrar_analisis_cuit():
                 st.error("❌ Formato de CUIT inválido. Usar formato: XX-XXXXXXXX-X")
         else:
             st.warning("⚠️ Por favor, ingresá un CUIT válido")
+
+    # MOSTRAR RESULTADOS PERSISTIDOS (si existen)
+    if st.session_state.campos_cuit:
+        st.success(f"✅ Campos encontrados: {len(st.session_state.campos_cuit)} (persistidos)")
+        
+        # Mostrar información de los campos guardados
+        st.subheader("📍 Campos Encontrados")
+        
+        for i, campo in enumerate(st.session_state.campos_cuit):
+            with st.expander(f"🏡 Campo {i+1}: {campo.get('titular', 'Sin titular')}", expanded=False):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write(f"**ID Campo**: {campo.get('renspa', 'N/A')}")
+                    st.write(f"**Titular**: {campo.get('titular', 'Sin información')}")
+                    st.write(f"**Localidad**: {campo.get('localidad', 'Sin información')}")
+                    st.write(f"**Superficie**: {campo.get('superficie', 0):.1f} ha")
+                
+                with col2:
+                    coords = campo.get('coords', [])
+                    st.write(f"**Coordenadas**: {len(coords)} puntos")
+                    
+                    if coords and len(coords) >= 3:
+                        # Crear mapa individual del campo
+                        mapa_campo = create_map_from_coords(coords, f"Campo {i+1}")
+                        if mapa_campo:
+                            st_folium(mapa_campo, width=300, height=200, key=f"mapa_campo_persistido_{i}")
+        
+        # Crear mapa general persistido
+        st.subheader("🗺️ Mapa General de Todos los Campos")
+        mapa_general = create_multi_field_map(st.session_state.campos_cuit)
+        if mapa_general:
+            st_folium(mapa_general, width=700, height=500, key="mapa_general_cuit_persistido")
+        
+        # BOTÓN PARA ANÁLISIS DE CULTIVOS PERSISTIDO
+        st.markdown("---")
+        st.subheader("🌾 Análisis de Cultivos")
+        if st.button("🔍 Analizar Cultivos", type="primary", key="btn_analizar_cultivos_cuit_persistido"):
+            with st.spinner("🔄 Analizando cultivos..."):
+                df_cultivos, area_total = analizar_cultivos_basico(st.session_state.campos_cuit)
+                
+                if df_cultivos is not None and not df_cultivos.empty:
+                    # Guardar análisis en session state
+                    st.session_state.df_cultivos_cuit = df_cultivos
+                    st.session_state.area_total_cuit = area_total
+                    
+                    st.success("✅ ¡Análisis de cultivos completado!")
+        
+        # MOSTRAR ANÁLISIS PERSISTIDO (si existe)
+        if st.session_state.df_cultivos_cuit is not None:
+            df_cultivos = st.session_state.df_cultivos_cuit
+            area_total = st.session_state.area_total_cuit
+            
+            # Mostrar métricas
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Área Total", f"{area_total:,.0f} ha")
+            with col2:
+                cultivos_detectados = df_cultivos["Cultivo"].nunique()
+                st.metric("Cultivos", f"{cultivos_detectados}")
+            with col3:
+                area_agricola = df_cultivos[df_cultivos["Cultivo"] != "No agrícola"]["Área (ha)"].sum()
+                porcentaje_agricola = (area_agricola / area_total * 100) if area_total > 0 else 0
+                st.metric("% Agrícola", f"{porcentaje_agricola:.1f}%")
+            
+            # Generar gráfico
+            fig, df_pivot = generar_grafico_rotacion_basico(df_cultivos)
+            if fig:
+                st.subheader("📊 Gráfico de Rotación de Cultivos")
+                st.pyplot(fig)
+            
+            # Mostrar tabla de datos
+            st.subheader("📋 Datos Detallados")
+            st.dataframe(df_cultivos, use_container_width=True)
+            
+            # Enlaces de descarga
+            st.subheader("💾 Descargar Resultados")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"analisis_cultivos_cuit_{timestamp}.csv"
+            download_link = get_download_link(df_cultivos, filename, "📊 Descargar CSV")
+            st.markdown(download_link, unsafe_allow_html=True)
+
 
 def mostrar_analisis_kmz():
     """Análisis REAL de archivos KMZ"""
@@ -820,6 +909,9 @@ def mostrar_analisis_kmz():
                                     st.metric("Cultivos", f"{cultivos_detectados}")
                                 with col3:
                                     area_agricola = df_cultivos[df_cultivos["Cultivo"] != "No agrícola"]["Área (ha)"].sum()
+                    # Guardar polígonos en session state para persistencia
+                    st.session_state.campos_kmz = todos_los_poligonos
+
                                     porcentaje_agricola = (area_agricola / area_total * 100) if area_total > 0 else 0
                                     st.metric("% Agrícola", f"{porcentaje_agricola:.1f}%")
                                 
@@ -842,6 +934,9 @@ def mostrar_analisis_kmz():
                             else:
                                 st.error("❌ No se pudieron analizar los cultivos")
 
+                            # Guardar campos en session state para persistencia
+                            st.session_state.campos_cuit = poligonos_data
+
                     # Guardar resultados
                     st.session_state.resultados_analisis = {
                         'tipo': 'kmz',
@@ -853,6 +948,116 @@ def mostrar_analisis_kmz():
                     
                 else:
                     st.error("❌ No se encontraron polígonos válidos en los archivos")
+
+    # MOSTRAR RESULTADOS PERSISTIDOS DE KMZ (si existen)
+    if st.session_state.campos_kmz:
+        st.success(f"✅ Polígonos encontrados: {len(st.session_state.campos_kmz)} (persistidos)")
+        
+        # Mostrar información de polígonos guardados
+        st.subheader("📍 Polígonos Encontrados")
+        
+        for i, pol in enumerate(st.session_state.campos_kmz):
+            with st.expander(f"🗺️ Polígono {i+1}: {pol.get('nombre', f'Sin nombre')}", expanded=False):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write(f"**Nombre**: {pol.get('nombre', 'Sin nombre')}")
+                    st.write(f"**Archivo**: {pol.get('archivo_origen', 'N/A')}")
+                    st.write(f"**KML**: {pol.get('kml_origen', 'N/A')}")
+                    coords = pol.get('coords', [])
+                    st.write(f"**Coordenadas**: {len(coords)} puntos")
+                
+                with col2:
+                    if coords and len(coords) >= 3:
+                        # Mostrar algunas coordenadas de ejemplo
+                        st.write("**Primeras coordenadas**:")
+                        for j, coord in enumerate(coords[:3]):
+                            if len(coord) >= 2:
+                                st.write(f"  {j+1}. Lon: {coord[0]:.6f}, Lat: {coord[1]:.6f}")
+                        
+                        if len(coords) > 3:
+                            st.write(f"  ... y {len(coords)-3} más")
+                        
+                        # Crear mapa individual
+                        mapa_pol = create_map_from_coords(coords, pol.get('nombre', f'Polígono {i+1}'))
+                        if mapa_pol:
+                            st_folium(mapa_pol, width=300, height=200, key=f"mapa_pol_persistido_{i}")
+        
+        # Crear mapa general persistido
+        st.subheader("🗺️ Mapa General de Todos los Polígonos")
+        mapa_general = create_multi_field_map(st.session_state.campos_kmz)
+        if mapa_general:
+            st_folium(mapa_general, width=700, height=500, key="mapa_general_kmz_persistido")
+        
+        # Mostrar tabla resumen persistida
+        st.subheader("📊 Resumen de Coordenadas")
+        resumen_data = []
+        for pol in st.session_state.campos_kmz:
+            coords = pol.get('coords', [])
+            if coords:
+                center_lat = sum(coord[1] if len(coord) > 1 else coord[0] for coord in coords) / len(coords)
+                center_lon = sum(coord[0] if len(coord) > 1 else coord[1] for coord in coords) / len(coords)
+                
+                resumen_data.append({
+                    'Nombre': pol.get('nombre', 'Sin nombre'),
+                    'Archivo': pol.get('archivo_origen', 'N/A'),
+                    'Puntos': len(coords),
+                    'Centro Lat': f"{center_lat:.6f}",
+                    'Centro Lon': f"{center_lon:.6f}"
+                })
+        
+        if resumen_data:
+            df_resumen = pd.DataFrame(resumen_data)
+            st.dataframe(df_resumen, use_container_width=True)
+        
+        # BOTÓN PARA ANÁLISIS DE CULTIVOS PERSISTIDO KMZ
+        st.markdown("---")
+        st.subheader("🌾 Análisis de Cultivos")
+        if st.button("🔍 Analizar Cultivos", type="primary", key="btn_analizar_cultivos_kmz_persistido"):
+            with st.spinner("🔄 Analizando cultivos..."):
+                df_cultivos, area_total = analizar_cultivos_basico(st.session_state.campos_kmz)
+                
+                if df_cultivos is not None and not df_cultivos.empty:
+                    # Guardar análisis en session state
+                    st.session_state.df_cultivos_kmz = df_cultivos
+                    st.session_state.area_total_kmz = area_total
+                    
+                    st.success("✅ ¡Análisis de cultivos completado!")
+        
+        # MOSTRAR ANÁLISIS PERSISTIDO KMZ (si existe)
+        if st.session_state.df_cultivos_kmz is not None:
+            df_cultivos = st.session_state.df_cultivos_kmz
+            area_total = st.session_state.area_total_kmz
+            
+            # Mostrar métricas
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Área Total", f"{area_total:,.0f} ha")
+            with col2:
+                cultivos_detectados = df_cultivos["Cultivo"].nunique()
+                st.metric("Cultivos", f"{cultivos_detectados}")
+            with col3:
+                area_agricola = df_cultivos[df_cultivos["Cultivo"] != "No agrícola"]["Área (ha)"].sum()
+                porcentaje_agricola = (area_agricola / area_total * 100) if area_total > 0 else 0
+                st.metric("% Agrícola", f"{porcentaje_agricola:.1f}%")
+            
+            # Generar gráfico
+            fig, df_pivot = generar_grafico_rotacion_basico(df_cultivos)
+            if fig:
+                st.subheader("📊 Gráfico de Rotación de Cultivos")
+                st.pyplot(fig)
+            
+            # Mostrar tabla de datos
+            st.subheader("📋 Datos Detallados")
+            st.dataframe(df_cultivos, use_container_width=True)
+            
+            # Enlaces de descarga
+            st.subheader("💾 Descargar Resultados")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"analisis_cultivos_kmz_{timestamp}.csv"
+            download_link = get_download_link(df_cultivos, filename, "📊 Descargar CSV")
+            st.markdown(download_link, unsafe_allow_html=True)
+
 
 if __name__ == "__main__":
     main()
