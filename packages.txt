@@ -1,0 +1,13 @@
+gdal-bin
+libgdal-dev
+libgdal28
+libgeos-dev
+libproj-dev
+libspatialindex-dev
+libfontconfig1-dev
+libharfbuzz-dev
+libfribidi-dev
+libfreetype6-dev
+libpng-dev
+libtiff5-dev
+libjpeg-dev
