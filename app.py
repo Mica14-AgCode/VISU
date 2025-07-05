@@ -640,6 +640,47 @@ def mostrar_analisis_cuit():
                             if mapa_general:
                                 st_folium(mapa_general, width=700, height=500, key="mapa_general_cuit")
                             
+                            # BOTÓN PARA ANÁLISIS DE CULTIVOS
+                            st.markdown("---")
+                            st.subheader("🌾 Análisis de Cultivos")
+                            if st.button("🔍 Analizar Cultivos", type="primary", key="btn_analizar_cultivos_cuit"):
+                                with st.spinner("🔄 Analizando cultivos..."):
+                                    df_cultivos, area_total = analizar_cultivos_basico(poligonos_data)
+                                    
+                                    if df_cultivos is not None and not df_cultivos.empty:
+                                        st.success("✅ ¡Análisis de cultivos completado!")
+                                        
+                                        # Mostrar métricas
+                                        col1, col2, col3 = st.columns(3)
+                                        with col1:
+                                            st.metric("Área Total", f"{area_total:,.0f} ha")
+                                        with col2:
+                                            cultivos_detectados = df_cultivos["Cultivo"].nunique()
+                                            st.metric("Cultivos", f"{cultivos_detectados}")
+                                        with col3:
+                                            area_agricola = df_cultivos[df_cultivos["Cultivo"] != "No agrícola"]["Área (ha)"].sum()
+                                            porcentaje_agricola = (area_agricola / area_total * 100) if area_total > 0 else 0
+                                            st.metric("% Agrícola", f"{porcentaje_agricola:.1f}%")
+                                        
+                                        # Generar gráfico
+                                        fig, df_pivot = generar_grafico_rotacion_basico(df_cultivos)
+                                        if fig:
+                                            st.subheader("📊 Gráfico de Rotación de Cultivos")
+                                            st.pyplot(fig)
+                                        
+                                        # Mostrar tabla de datos
+                                        st.subheader("📋 Datos Detallados")
+                                        st.dataframe(df_cultivos, use_container_width=True)
+                                        
+                                        # Enlaces de descarga
+                                        st.subheader("💾 Descargar Resultados")
+                                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                        filename = f"analisis_cultivos_cuit_{timestamp}.csv"
+                                        download_link = get_download_link(df_cultivos, filename, "📊 Descargar CSV")
+                                        st.markdown(download_link, unsafe_allow_html=True)
+                                    else:
+                                        st.error("❌ No se pudieron analizar los cultivos")
+
                             # Guardar resultados
                             st.session_state.resultados_analisis = {
                                 'tipo': 'cuit',
@@ -750,6 +791,47 @@ def mostrar_analisis_kmz():
                         df_resumen = pd.DataFrame(resumen_data)
                         st.dataframe(df_resumen, use_container_width=True)
                     
+                    # BOTÓN PARA ANÁLISIS DE CULTIVOS
+                    st.markdown("---")
+                    st.subheader("🌾 Análisis de Cultivos")
+                    if st.button("🔍 Analizar Cultivos", type="primary", key="btn_analizar_cultivos_kmz"):
+                        with st.spinner("🔄 Analizando cultivos..."):
+                            df_cultivos, area_total = analizar_cultivos_basico(todos_los_poligonos)
+                            
+                            if df_cultivos is not None and not df_cultivos.empty:
+                                st.success("✅ ¡Análisis de cultivos completado!")
+                                
+                                # Mostrar métricas
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    st.metric("Área Total", f"{area_total:,.0f} ha")
+                                with col2:
+                                    cultivos_detectados = df_cultivos["Cultivo"].nunique()
+                                    st.metric("Cultivos", f"{cultivos_detectados}")
+                                with col3:
+                                    area_agricola = df_cultivos[df_cultivos["Cultivo"] != "No agrícola"]["Área (ha)"].sum()
+                                    porcentaje_agricola = (area_agricola / area_total * 100) if area_total > 0 else 0
+                                    st.metric("% Agrícola", f"{porcentaje_agricola:.1f}%")
+                                
+                                # Generar gráfico
+                                fig, df_pivot = generar_grafico_rotacion_basico(df_cultivos)
+                                if fig:
+                                    st.subheader("📊 Gráfico de Rotación de Cultivos")
+                                    st.pyplot(fig)
+                                
+                                # Mostrar tabla de datos
+                                st.subheader("📋 Datos Detallados")
+                                st.dataframe(df_cultivos, use_container_width=True)
+                                
+                                # Enlaces de descarga
+                                st.subheader("💾 Descargar Resultados")
+                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                filename = f"analisis_cultivos_kmz_{timestamp}.csv"
+                                download_link = get_download_link(df_cultivos, filename, "📊 Descargar CSV")
+                                st.markdown(download_link, unsafe_allow_html=True)
+                            else:
+                                st.error("❌ No se pudieron analizar los cultivos")
+
                     # Guardar resultados
                     st.session_state.resultados_analisis = {
                         'tipo': 'kmz',
