@@ -126,31 +126,33 @@ st.markdown("""
 # =====================================================================
 
 def validate_cuit(cuit):
-    """Validar formato de CUIT argentino"""
-    if not cuit or len(cuit) != 13:
+    """Validar formato de CUIT argentino - ACEPTA MÚLTIPLES FORMATOS"""
+    if not cuit:
         return False
     
-    # Verificar formato XX-XXXXXXXX-X
-    if cuit[2] != '-' or cuit[11] != '-':
+    # Limpiar el CUIT: quitar espacios, guiones y caracteres especiales
+    cuit_limpio = cuit.replace("-", "").replace(" ", "").replace(".", "").strip()
+    
+    # Verificar que tenga exactamente 11 dígitos
+    if len(cuit_limpio) != 11:
         return False
     
-    # Verificar que sean números
-    numbers = cuit.replace('-', '')
-    if not numbers.isdigit():
+    # Verificar que sean solo números
+    if not cuit_limpio.isdigit():
         return False
     
     return True
-
-def normalizar_cuit(cuit):
     """Normaliza un CUIT a formato XX-XXXXXXXX-X"""
     cuit_limpio = cuit.replace("-", "")
+def normalizar_cuit(cuit):
+    """Normaliza un CUIT a formato XX-XXXXXXXX-X desde cualquier formato"""
+    # Limpiar el CUIT: quitar espacios, guiones y caracteres especiales
+    cuit_limpio = cuit.replace("-", "").replace(" ", "").replace(".", "").strip()
     
     if len(cuit_limpio) != 11:
         raise ValueError(f"CUIT inválido: {cuit}. Debe tener 11 dígitos.")
     
     return f"{cuit_limpio[:2]}-{cuit_limpio[2:10]}-{cuit_limpio[10]}"
-
-# =====================================================================
 # FUNCIONES PARA CONSULTA POR CUIT - API SENASA REAL
 # =====================================================================
 
@@ -563,6 +565,14 @@ def main():
     if 'resultados_analisis' not in st.session_state:
         st.session_state.resultados_analisis = None
     if 'analisis_completado' not in st.session_state:
+    if "campos_cuit" not in st.session_state:
+        st.session_state.campos_cuit = None
+    if "campos_kmz" not in st.session_state:
+        st.session_state.campos_kmz = None
+    if "df_cultivos_cuit" not in st.session_state:
+        st.session_state.df_cultivos_cuit = None
+    if "df_cultivos_kmz" not in st.session_state:
+        st.session_state.df_cultivos_kmz = None
         st.session_state.analisis_completado = False
     
     # CREAR PESTAÑAS PRINCIPALES
@@ -577,20 +587,20 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #666; font-size: 0.9rem;">
-        🌾 VISU - Agricultural Intelligence | Powered by SENASA + Google Earth Engine
+        🌾 VISU - Agricultural Intelligence | Powered by Agricultural Intelligence
     </div>
     """, unsafe_allow_html=True)
 
 def mostrar_analisis_cuit():
     """Análisis REAL por CUIT usando API de SENASA"""
     st.title("🏢 Análisis por CUIT")
-    st.markdown("**Consulta REAL usando API de SENASA**")
+    st.markdown("**Consulta automática de campos registrados**")
     
     # Input para CUIT
     cuit_input = st.text_input(
         "🏢 Ingresá el CUIT del productor:",
         placeholder="30-12345678-9",
-        help="💡 Consulta automática REAL de coordenadas usando API de SENASA"
+        help="💡 Consulta automática de coordenadas de campos registrados"
     )
     
     # Opción para elegir entre campos activos o históricos
@@ -600,11 +610,11 @@ def mostrar_analisis_cuit():
         horizontal=True
     ) == "Solo campos activos"
     
-    if st.button("🔍 Consultar SENASA", type="primary"):
+    if st.button("🔍 Consultar Campos", type="primary"):
         if cuit_input:
             if validate_cuit(cuit_input):
                 try:
-                    with st.spinner("🔄 Consultando API de SENASA..."):
+                    with st.spinner("🔄 Consultando campos registrados..."):
                         # Procesar campos del CUIT usando API REAL
                         poligonos_data = procesar_campos_cuit(cuit_input, solo_activos)
                         
@@ -619,7 +629,7 @@ def mostrar_analisis_cuit():
                                     col1, col2 = st.columns(2)
                                     
                                     with col1:
-                                        st.write(f"**RENSPA**: {campo.get('renspa', 'N/A')}")
+                                        st.write(f"**ID Campo**: {campo.get('renspa', 'N/A')}")
                                         st.write(f"**Titular**: {campo.get('titular', 'Sin información')}")
                                         st.write(f"**Localidad**: {campo.get('localidad', 'Sin información')}")
                                         st.write(f"**Superficie**: {campo.get('superficie', 0):.1f} ha")
@@ -694,7 +704,7 @@ def mostrar_analisis_cuit():
                             st.warning("⚠️ No se encontraron campos con coordenadas para este CUIT")
                             
                 except Exception as e:
-                    st.error(f"❌ Error consultando SENASA: {e}")
+                    st.error(f"❌ Error consultando campos: {e}")
             else:
                 st.error("❌ Formato de CUIT inválido. Usar formato: XX-XXXXXXXX-X")
         else:
